@@ -15,10 +15,12 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from datasentry.agents.guardrails import GuardrailEngine, SecurityPolicy
 from datasentry.agents.remediation import RemediationAgent
+from datasentry.api.dashboard import DASHBOARD_HTML
 from datasentry.core.engine import DataSentryEngine
 from datasentry.explainability.explainer import DataSentryExplainer, ExplanationResult
 from datasentry.explainability.verifier import FaithfulnessVerifier
@@ -71,6 +73,12 @@ class RemediateResponse(BaseModel):
     executed: bool
     reason: str
     risk_tier: str
+
+
+@app.get("/", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
+def dashboard_view() -> str:
+    """Interactive single-page web dashboard for live monitoring and demonstrations."""
+    return DASHBOARD_HTML
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
