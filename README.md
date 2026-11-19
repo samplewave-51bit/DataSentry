@@ -179,9 +179,15 @@ datasentry eval redteam    # [baseline, ablation, redteam, all]
 
 ### 2. REST API Service
 
-Launch the FastAPI service:
+Launch the FastAPI service using either the DataSentry CLI or Python's module runner:
 ```bash
-uvicorn datasentry.api.app:app --host 0.0.0.0 --port 8000
+# Option A: Via DataSentry CLI
+datasentry serve --port 8000
+# or (Windows / local environment without global CLI installed):
+$env:PYTHONPATH="src"; python -m datasentry.cli serve --port 8000
+
+# Option B: Via uvicorn directly
+python -m uvicorn datasentry.api.app:app --host 0.0.0.0 --port 8000
 ```
 
 Interactive OpenAPI documentation is available at `http://localhost:8000/docs`.

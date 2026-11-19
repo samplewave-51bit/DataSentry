@@ -6,6 +6,7 @@ Commands:
 - explain: Generate grounded Granite explanation with citation auditing.
 - agent: Trigger safety-gated autonomous remediation.
 - eval: Execute baseline benchmarks, PyTorch ablations, or red-team evaluations.
+- serve: Launch the FastAPI REST service with uvicorn.
 """
 
 from __future__ import annotations
@@ -141,6 +142,17 @@ def eval_command(suite: str):
         rt.generate_summary_tables(df, output_csv="outputs/redteam_results.csv", output_md="outputs/redteam_results.md")
 
     click.echo("[+] Evaluation complete. Results saved in outputs/")
+
+
+@cli.command("serve")
+@click.option("--host", default="127.0.0.1", help="Host interface to bind to.")
+@click.option("--port", default=8000, type=int, help="Port to listen on.")
+@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
+def serve_command(host: str, port: int, reload: bool):
+    """Launch the DataSentry FastAPI REST API server."""
+    click.echo(f"[*] Starting DataSentry REST API at http://{host}:{port} ...")
+    import uvicorn
+    uvicorn.run("datasentry.api.app:app", host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":
