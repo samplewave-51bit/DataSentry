@@ -41,6 +41,20 @@ class AnomalyDetector:
         self.method = method.lower()
         self.contamination = contamination
         self.random_state = random_state
+        self._fitted_estimator = None
+
+    def fit(self, reference_df: pd.DataFrame) -> AnomalyDetector:
+        """Pre-fits anomaly detection estimator on reference data for pure inference benchmarking."""
+        numeric_df = reference_df.select_dtypes(include=[np.number]).dropna()
+        if self.method == "isolation_forest" and len(numeric_df) >= 5:
+            model = IsolationForest(
+                contamination=self.contamination,
+                random_state=self.random_state,
+                n_estimators=100,
+            )
+            model.fit(numeric_df)
+            self._fitted_estimator = model
+        return self
 
     def detect(self, df: pd.DataFrame) -> AnomalyReport:
         """Detect anomalous rows in numeric features of df."""
@@ -94,13 +108,18 @@ class AnomalyDetector:
     def _detect_isolation_forest(
         self, original_df: pd.DataFrame, numeric_df: pd.DataFrame
     ) -> List[AnomalyRecord]:
-        model = IsolationForest(
-            contamination=self.contamination,
-            random_state=self.random_state,
-            n_estimators=100,
-        )
-        preds = model.fit_predict(numeric_df)
-        scores = -model.score_samples(numeric_df)  # higher = more anomalous
+        if self._fitted_estimator is not None:
+            model = self._fitted_estimator
+            preds = model.predict(numeric_df)
+            scores = -model.score_samples(numeric_df)
+        else:
+            model = IsolationForest(
+                contamination=self.contamination,
+                random_state=self.random_state,
+                n_estimators=100,
+            )
+            preds = model.fit_predict(numeric_df)
+            scores = -model.score_samples(numeric_df)  # higher = more anomalous
 
         # Standardize features to compute feature contribution (deviation from median)
         scaler = StandardScaler()

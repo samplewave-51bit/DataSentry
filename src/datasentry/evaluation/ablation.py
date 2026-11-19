@@ -40,15 +40,34 @@ class AnomalyAblationRunner:
         ref_df = clean_df.iloc[:300].copy()
         test_base_df = clean_df.iloc[300:].copy()
 
-        # Fit models on reference data
+        # Measure fit time and initialize models
+        t_ae = time.perf_counter()
         ae_detector = AutoencoderAnomalyDetector(epochs=20, random_state=self.random_state).fit(ref_df)
+        ae_fit_ms = (time.perf_counter() - t_ae) * 1000.0
+
+        t_pca = time.perf_counter()
         pca_detector = PCAReconstructionDetector(random_state=self.random_state).fit(ref_df)
-        iforest_detector = AnomalyDetector(method="isolation_forest", random_state=self.random_state)
+        pca_fit_ms = (time.perf_counter() - t_pca) * 1000.0
+
+        t_if = time.perf_counter()
+        iforest_detector = AnomalyDetector(method="isolation_forest", random_state=self.random_state).fit(ref_df)
+        if_fit_ms = (time.perf_counter() - t_if) * 1000.0
+
+        iforest_online = AnomalyDetector(method="isolation_forest", random_state=self.random_state)
         mahal_detector = AnomalyDetector(method="mahalanobis", random_state=self.random_state)
+
+        fit_times = {
+            "pytorch_autoencoder": round(ae_fit_ms, 2),
+            "isolation_forest_prefit": round(if_fit_ms, 2),
+            "isolation_forest_online": 0.0,
+            "mahalanobis": 0.0,
+            "pca_reconstruction": round(pca_fit_ms, 2),
+        }
 
         models = {
             "pytorch_autoencoder": ae_detector,
-            "isolation_forest": iforest_detector,
+            "isolation_forest_prefit": iforest_detector,
+            "isolation_forest_online": iforest_online,
             "mahalanobis": mahal_detector,
             "pca_reconstruction": pca_detector,
         }
@@ -118,4 +137,5 @@ class AnomalyAblationRunner:
             .reset_index()
             .sort_values("mean_f1", ascending=False)
         )
+        summary["fit_time_ms"] = summary["model"].map(fit_times).fillna(0.0)
         return summary
