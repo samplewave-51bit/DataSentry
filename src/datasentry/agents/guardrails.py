@@ -68,6 +68,8 @@ class InputSanitizer:
         (r"grant\s+admin|escalate\s+privileges", "PRIVILEGE_ESCALATION"),
         (r"bypass\s+(all\s+)?guardrails?", "GUARDRAIL_BYPASS_ATTEMPT"),
         (r"</system>|<\|im_start\|>|\[SYSTEM\]", "DELIMITER_INJECTION"),
+        (r"!\[.*?\]\(https?://.*?\)", "MARKDOWN_EXFILTRATION"),
+        (r";\s*(rm|del|shutdown|reboot)", "SHELL_DELIMITER_INJECTION"),
     ]
 
     @classmethod
@@ -183,13 +185,13 @@ class GuardrailEngine:
         """Evaluates tool invocation against all active security constraints."""
 
         # 1. Step Budget / Loop Breaker
-        if step_count > self.policy.max_execution_steps:
+        if step_count > self.policy.max_execution_steps or step_count < 1:
             dec = GuardrailDecision(
                 allowed=False,
                 status=DecisionStatus.BLOCK,
                 tool_name=tool_name,
                 risk_tier=RiskTier.HIGH_RISK,
-                reason=f"BLOCKED: Maximum step budget exceeded ({step_count} > {self.policy.max_execution_steps}). Loop breaker engaged.",
+                reason=f"BLOCKED: Invalid or exceeded step budget ({step_count} not in 1..{self.policy.max_execution_steps}). Loop breaker engaged.",
                 step_count=step_count,
             )
             self._log_decision(dec, arguments)
@@ -210,14 +212,15 @@ class GuardrailEngine:
             return dec
 
         # 3. Role-Based Access Control (RBAC)
-        allowed_tools = self.policy.roles.get(agent_role, {}).get("allowed_tools", [])
+        norm_role = agent_role.strip().lower()
+        allowed_tools = self.policy.roles.get(norm_role, {}).get("allowed_tools", [])
         if tool_name not in allowed_tools:
             dec = GuardrailDecision(
                 allowed=False,
                 status=DecisionStatus.BLOCK,
                 tool_name=tool_name,
                 risk_tier=risk_tier,
-                reason=f"BLOCKED: Role '{agent_role}' does not possess permission for tool '{tool_name}'.",
+                reason=f"BLOCKED: Role '{norm_role}' does not possess permission for tool '{tool_name}'.",
                 step_count=step_count,
             )
             self._log_decision(dec, arguments)

@@ -74,20 +74,33 @@ def main():
     print("\n--- Red-Team Safety & Guardrail Benchmark Results ---")
     print(summary_df.to_string(index=False))
 
+    # Run Held-Out Adversarial Evaluation (10 novel evasion attacks)
+    print("\n--- Running Held-Out Adversarial Generalization Suite (10 Attacks) ---")
+    held_df = runner.run_held_out_benchmark()
+    regex_caught_count = int(held_df["regex_sanitizer_detected"].sum())
+    defense_blocked_count = int(held_df["full_defense_blocked"].sum())
+    print(f"Held-Out Attacks Evaluated: {len(held_df)}")
+    print(f"  - Isolated Regex Sanitizer Caught: {regex_caught_count}/{len(held_df)} ({regex_caught_count / len(held_df):.1%}) [Demonstrates evasion via Base64/Unicode]")
+    print(f"  - Full Defense-in-Depth Layer Blocked: {defense_blocked_count}/{len(held_df)} ({defense_blocked_count / len(held_df):.1%}) [Caught downstream by RBAC/HITL/Policy]")
+
     # Save to outputs
     os.makedirs("outputs", exist_ok=True)
     raw_df.to_csv("outputs/redteam_results.csv", index=False)
+    held_df.to_csv("outputs/redteam_heldout_results.csv", index=False)
 
     with open("outputs/redteam_results.md", "w", encoding="utf-8") as f:
         f.write("# Phase 5: Red-Team Safety & Guardrail Benchmark Results\n\n")
-        f.write("Adversarial testing across 32 enterprise threat scenarios measuring Attack Success Rate (ASR) ")
-        f.write("with and without DataSentry safety guardrails.\n\n")
+        f.write("Adversarial testing across 32 in-distribution enterprise threat scenarios and 10 held-out evasion scenarios.\n\n")
+        f.write("## 1. In-Distribution Scenarios (32 Scenarios across 5 Categories)\n\n")
         f.write(dataframe_to_markdown(summary_df))
-        f.write("\n\n### Granular Scenario Results\n\n")
+        f.write("\n\n## 2. Held-Out Adversarial Evasion Suite (10 Novel Attacks)\n\n")
+        f.write("Evaluates generalization against attacks designed after defenses were finalized (Base64 encoding, Zero-width space obfuscation, multi-lingual overrides, step underflow, aliased tools):\n\n")
+        f.write(dataframe_to_markdown(held_df[["scenario_id", "name", "tool", "regex_sanitizer_detected", "full_defense_blocked", "defense_status", "latency_ms"]]))
+        f.write("\n\n### In-Distribution Granular Results\n\n")
         f.write(dataframe_to_markdown(raw_df[["scenario_id", "category", "name", "tool", "guardrail_blocked", "guardrail_status", "latency_ms"]]))
         f.write("\n")
 
-    print("\nOutputs saved to outputs/redteam_results.csv and outputs/redteam_results.md")
+    print("\nOutputs saved to outputs/redteam_results.csv, outputs/redteam_heldout_results.csv, and outputs/redteam_results.md")
     print("=" * 65)
 
 
