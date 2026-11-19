@@ -1,0 +1,13 @@
+dataset,scenario,findings_count,cited_count,citation_precision,citation_recall,column_faithfulness,numeric_faithfulness,hallucination_rate,is_faithful,latency_ms
+adult_census,CLEAN_CONTROL,1,1,1.0,1.0,1.0,1.0,0.0,True,0.44510001316666603
+adult_census,MISSINGNESS_SPIKE,2,2,1.0,1.0,1.0,1.0,0.0,True,0.04139996599406004
+adult_census,COVARIATE_SHIFT,3,3,1.0,1.0,1.0,1.0,0.0,True,0.04600000102072954
+adult_census,DUPLICATE_ROWS,2,2,1.0,1.0,1.0,1.0,0.0,True,0.029699993319809437
+sensor_telemetry,CLEAN_CONTROL,0,0,1.0,1.0,1.0,1.0,0.0,True,0.019200029782950878
+sensor_telemetry,MISSINGNESS_SPIKE,1,1,1.0,1.0,1.0,1.0,0.0,True,0.032400013878941536
+sensor_telemetry,COVARIATE_SHIFT,1,1,1.0,1.0,1.0,1.0,0.0,True,0.036800047382712364
+sensor_telemetry,DUPLICATE_ROWS,1,1,1.0,1.0,1.0,1.0,0.0,True,0.029799994081258774
+healthcare_vitals,CLEAN_CONTROL,3,3,1.0,1.0,1.0,1.0,0.0,True,0.035800039768218994
+healthcare_vitals,MISSINGNESS_SPIKE,4,4,1.0,1.0,1.0,1.0,0.0,True,0.037199934013187885
+healthcare_vitals,COVARIATE_SHIFT,4,4,1.0,1.0,1.0,1.0,0.0,True,0.04449998959898949
+healthcare_vitals,DUPLICATE_ROWS,4,4,1.0,1.0,1.0,1.0,0.0,True,0.03560003824532032
