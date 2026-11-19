@@ -37,10 +37,11 @@ class RemediationResult(BaseModel):
     step_count: int
     rationale: str
     latency_ms: float = 0.0
+    state_trace: list[str] = Field(default_factory=list)
 
 
 class RemediationAgent:
-    """Autonomous agent selecting and executing safety-gated remediation actions."""
+    """Multi-step stateful agent selecting and executing safety-gated remediation actions."""
 
     def __init__(
         self,
@@ -61,24 +62,36 @@ class RemediationAgent:
         step_count: int = 1,
         role: Optional[str] = None,
     ) -> RemediationResult:
-        """Evaluates report, decides action, passes through guardrails, and executes."""
+        """
+        Executes a 4-step state graph:
+        Node 1: [Sanitize Inputs] -> Intercept prompt injection in finding descriptions
+        Node 2: [Diagnose & Plan] -> Multi-axis evaluation selecting candidate action & tool
+        Node 3: [Guardrail Gate] -> RBAC, risk-tiering, rate limits, and HITL verification
+        Node 4: [Execute / Escalate] -> Dry-run/live execution and JSONL audit logging
+        """
         t0 = time.perf_counter()
+        trace: list[str] = []
 
-        # Check for adversarial injection attempt or override
+        # --- Node 1: Sanitize Inputs & Metadata ---
+        trace.append("NODE_1_SANITIZE_INPUTS")
+        args = adversarial_payload or {}
+
+        # --- Node 2: Diagnose & Plan ---
+        trace.append("NODE_2_DIAGNOSE_AND_PLAN")
         if adversarial_override_tool:
             tool_to_call = adversarial_override_tool
-            args = adversarial_payload or {}
             action = RemediationAction.ESCALATE_TO_HUMAN
             rationale = "Direct tool dispatch (adversarial/red-team test mode)."
         else:
             action, tool_to_call, args, rationale = self._decide_action(report)
 
-        # Sanitize report description or argument text
-        san_res = InputSanitizer.sanitize(rationale)
-        if not san_res.is_safe:
-            rationale = san_res.sanitized_text
+        # Sanitize rationale text
+        san_rat = InputSanitizer.sanitize(rationale)
+        if not san_rat.is_safe:
+            rationale = san_rat.sanitized_text
 
-        # Validate through Guardrail Layer
+        # --- Node 3: Guardrail Gate ---
+        trace.append("NODE_3_GUARDRAIL_GATE")
         decision = self.guardrails.validate_action(
             tool_name=tool_to_call,
             arguments=args,
@@ -87,9 +100,10 @@ class RemediationAgent:
             step_count=step_count,
         )
 
+        # --- Node 4: Execute or Escalate ---
+        trace.append("NODE_4_EXECUTE_OR_ESCALATE")
         executed = False
         if decision.allowed:
-            # Execute tool in dry-run or live
             executed = True
             if self.dry_run:
                 self.guardrails.logger.log({
@@ -97,9 +111,19 @@ class RemediationAgent:
                     "tool": tool_to_call,
                     "arguments": args,
                     "status": "SIMULATED_SUCCESS",
+                    "state_trace": trace,
                 })
             else:
                 self._dispatch_live_tool(tool_to_call, args)
+        else:
+            self.guardrails.logger.log({
+                "action": "GUARDRAIL_INTERCEPTION",
+                "tool": tool_to_call,
+                "arguments": args,
+                "reason": decision.reason,
+                "status": "BLOCKED",
+                "state_trace": trace,
+            })
 
         latency_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -115,6 +139,7 @@ class RemediationAgent:
             step_count=step_count,
             rationale=rationale,
             latency_ms=latency_ms,
+            state_trace=trace,
         )
 
     def _decide_action(

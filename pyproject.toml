@@ -20,7 +20,12 @@ dependencies = [
     "pydantic>=2.0.0",
     "torch>=2.0.0",
     "sentence-transformers>=2.2.0",
+    "click>=8.0.0",
+    "pyyaml>=6.0.0",
 ]
+
+[project.scripts]
+datasentry = "datasentry.cli:cli"
 
 [project.optional-dependencies]
 dev = [
