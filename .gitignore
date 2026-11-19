@@ -52,3 +52,5 @@ logs/
 data/raw/
 *.parquet
 *.log
+report.json
+
