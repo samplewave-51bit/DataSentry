@@ -115,12 +115,18 @@ class SecurityPolicy:
         settings = self.raw_config.get("settings", {})
         self.dry_run_default: bool = settings.get("dry_run_default", True)
         self.max_execution_steps: int = settings.get("max_execution_steps", 10)
+        self.rate_limit_per_minute: int = settings.get("rate_limit_per_minute", 20)
         self.budget_cap_usd: float = settings.get("budget_cap_usd", 1.00)
         self.audit_log_path: str = settings.get("audit_log_path", "logs/audit_log.jsonl")
 
         self.risk_tiers: Dict[str, Any] = self.raw_config.get("risk_tiers", {})
         self.roles: Dict[str, Any] = self.raw_config.get("roles", {})
         self.forbidden_tools: Set[str] = set(self.raw_config.get("forbidden_tools", []))
+
+    @classmethod
+    def from_yaml(cls, path: str) -> SecurityPolicy:
+        """Constructs SecurityPolicy from a YAML configuration file."""
+        return cls(policy_path=path)
 
     def _load(self) -> Dict[str, Any]:
         if os.path.exists(self.policy_path):
