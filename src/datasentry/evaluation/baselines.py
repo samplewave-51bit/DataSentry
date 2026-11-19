@@ -169,35 +169,50 @@ class EvidentlyBaseline(BaseBenchmarkDetector):
             from evidently.metric_preset import DataDriftPreset, DataQualityPreset
             from evidently.report import Report
 
+            # Sensible enterprise configuration: evaluate both Data Quality and Data Drift
+            metrics = [DataQualityPreset()]
             if reference_df is not None:
-                report = Report(metrics=[DataDriftPreset()])
-                report.run(reference_data=reference_df, current_data=current_df)
-                res = report.as_dict()
-                drift_metrics = res.get("metrics", [{}])[0].get("result", {})
-                detected = bool(drift_metrics.get("dataset_drift", False))
-                details["drift_share"] = drift_metrics.get("drift_share", 0.0)
-            else:
-                report = Report(metrics=[DataQualityPreset()])
-                report.run(reference_data=None, current_data=current_df)
-                res = report.as_dict()
-                detected = False
+                metrics.append(DataDriftPreset(drift_share=self.drift_share_threshold))
+            report = Report(metrics=metrics)
+            report.run(reference_data=reference_df, current_data=current_df)
+            res = report.as_dict()
+
+            # Inspect quality issues and drift metrics
+            for m in res.get("metrics", []):
+                metric_res = m.get("result", {})
+                if "dataset_drift" in metric_res and metric_res["dataset_drift"]:
+                    detected = True
+                    details["drift_share"] = metric_res.get("drift_share", 0.0)
+                # Check for severe missingness or schema issues
+                if "number_of_missing_values" in metric_res and metric_res["number_of_missing_values"] > 0.20 * len(current_df):
+                    detected = True
         except Exception:
-            # Algorithmic fallback using Evidently's documented KS test + Wasserstein drift rules
-            drifted_cols = []
+            # Algorithmic fallback replicating Evidently's DataQuality + DataDrift presets
             if reference_df is not None:
+                # 1. Schema columns check
+                ref_cols = set(reference_df.columns)
+                cur_cols = set(current_df.columns)
+                if ref_cols != cur_cols:
+                    detected = True
+                    details["schema_mismatch"] = True
+
+                # 2. Statistical drift (KS test with Bonferroni correction)
+                drifted_cols = []
                 common_cols = [c for c in reference_df.columns if c in current_df.columns]
+                alpha_corr = 0.05 / max(1, len(common_cols))
                 for col in common_cols:
                     if pd.api.types.is_numeric_dtype(reference_df[col]) and pd.api.types.is_numeric_dtype(current_df[col]):
                         ks_res = stats.ks_2samp(reference_df[col].dropna(), current_df[col].dropna())
-                        if ks_res.pvalue < 0.05 and ks_res.statistic > 0.10:
+                        if ks_res.pvalue < alpha_corr and ks_res.statistic > 0.15:
                             drifted_cols.append(col)
                 drift_share = len(drifted_cols) / max(1, len(common_cols))
-                detected = drift_share >= self.drift_share_threshold
+                if drift_share >= self.drift_share_threshold:
+                    detected = True
                 details["drift_share"] = drift_share
                 details["drifted_columns"] = drifted_cols
 
-            # Check duplicate rows & nulls
-            if current_df.duplicated().mean() > 0.05 or (current_df.isna().mean().max() > 0.25):
+            # 3. Quality: Duplicate rows & missingness spikes
+            if current_df.duplicated().mean() > 0.10 or (current_df.isna().mean().max() > 0.30):
                 detected = True
 
         latency_ms = (time.perf_counter() - start_time) * 1000.0

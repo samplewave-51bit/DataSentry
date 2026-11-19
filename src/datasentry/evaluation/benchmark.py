@@ -13,7 +13,7 @@ Measures: Precision, Recall, F1, False Alarm Rate, and Latency (ms).
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -61,15 +61,18 @@ class BenchmarkRunner:
             ref_df = clean_df.iloc[:split_idx].copy()
             base_test_df = clean_df.iloc[split_idx:].copy()
 
-            # 1. Negative controls: Clean batches
             for run_i in range(n_runs_per_fault):
-                # Clean sample without artificial duplicates
+                seed = self.random_state + run_i
+                injector = FaultInjector(random_state=seed)
+
+                # 1. Negative controls: Clean batches across seeds
                 sample_n = min(len(base_test_df), 200)
-                sample_clean = base_test_df.sample(n=sample_n, replace=False, random_state=self.random_state + run_i)
+                sample_clean = base_test_df.sample(n=sample_n, replace=False, random_state=seed)
                 for det in self.detectors:
                     res = det.run(current_df=sample_clean, reference_df=ref_df, schema=schema)
                     records.append({
                         "dataset": ds_name,
+                        "run_seed": seed,
                         "fault_type": "CLEAN_CONTROL",
                         "is_fault": False,
                         "detector": det.name,
@@ -77,26 +80,28 @@ class BenchmarkRunner:
                         "latency_ms": res["latency_ms"],
                     })
 
-            # 2. Injected Faults
-            fault_scenarios = self._generate_fault_scenarios(base_test_df, ds_name)
-            for fault_type, corrupted_df in fault_scenarios:
-                for det in self.detectors:
-                    res = det.run(current_df=corrupted_df, reference_df=ref_df, schema=schema)
-                    records.append({
-                        "dataset": ds_name,
-                        "fault_type": fault_type.value,
-                        "is_fault": True,
-                        "detector": det.name,
-                        "detected": res["detected_fault"],
-                        "latency_ms": res["latency_ms"],
-                    })
+                # 2. Injected Faults across seeds
+                fault_scenarios = self._generate_fault_scenarios(base_test_df, ds_name, injector=injector)
+                for fault_type, corrupted_df in fault_scenarios:
+                    for det in self.detectors:
+                        res = det.run(current_df=corrupted_df, reference_df=ref_df, schema=schema)
+                        records.append({
+                            "dataset": ds_name,
+                            "run_seed": seed,
+                            "fault_type": fault_type.value,
+                            "is_fault": True,
+                            "detector": det.name,
+                            "detected": res["detected_fault"],
+                            "latency_ms": res["latency_ms"],
+                        })
 
         raw_df = pd.DataFrame(records)
         return self._compute_metrics(raw_df)
 
     def _generate_fault_scenarios(
-        self, base_df: pd.DataFrame, ds_name: str
+        self, base_df: pd.DataFrame, ds_name: str, injector: Optional[FaultInjector] = None
     ) -> List[tuple[FaultType, pd.DataFrame]]:
+        inj = injector or self.injector
         scenarios = []
 
         # Determine target columns based on dataset
@@ -114,25 +119,25 @@ class BenchmarkRunner:
             col_a, col_b = "glucose", "insulin"
 
         # 1. Schema Drop
-        scenarios.append((FaultType.SCHEMA_DROP, self.injector.inject_schema_drop(base_df, num_col).corrupted_df))
+        scenarios.append((FaultType.SCHEMA_DROP, inj.inject_schema_drop(base_df, num_col).corrupted_df))
         # 2. Schema Rename
-        scenarios.append((FaultType.SCHEMA_RENAME, self.injector.inject_schema_rename(base_df, num_col).corrupted_df))
+        scenarios.append((FaultType.SCHEMA_RENAME, inj.inject_schema_rename(base_df, num_col).corrupted_df))
         # 3. Schema Retype
-        scenarios.append((FaultType.SCHEMA_RETYPE, self.injector.inject_schema_retype(base_df, num_col).corrupted_df))
+        scenarios.append((FaultType.SCHEMA_RETYPE, inj.inject_schema_retype(base_df, num_col).corrupted_df))
         # 4. Missingness Spike
-        scenarios.append((FaultType.MISSINGNESS_SPIKE, self.injector.inject_missingness_spike(base_df, num_col, missing_rate=0.45).corrupted_df))
+        scenarios.append((FaultType.MISSINGNESS_SPIKE, inj.inject_missingness_spike(base_df, num_col, missing_rate=0.45).corrupted_df))
         # 5. Unit Error
-        scenarios.append((FaultType.UNIT_ERROR, self.injector.inject_unit_error(base_df, num_col).corrupted_df))
+        scenarios.append((FaultType.UNIT_ERROR, inj.inject_unit_error(base_df, num_col).corrupted_df))
         # 6. Out of Range
-        scenarios.append((FaultType.OUT_OF_RANGE, self.injector.inject_out_of_range(base_df, num_col, fraction=0.08).corrupted_df))
+        scenarios.append((FaultType.OUT_OF_RANGE, inj.inject_out_of_range(base_df, num_col, fraction=0.08).corrupted_df))
         # 7. Duplicate Rows
-        scenarios.append((FaultType.DUPLICATE_ROWS, self.injector.inject_duplicate_rows(base_df, fraction=0.15).corrupted_df))
+        scenarios.append((FaultType.DUPLICATE_ROWS, inj.inject_duplicate_rows(base_df, fraction=0.15).corrupted_df))
         # 8. Covariate Shift
-        scenarios.append((FaultType.COVARIATE_SHIFT, self.injector.inject_covariate_shift(base_df, num_col, shift_std=3.0).corrupted_df))
+        scenarios.append((FaultType.COVARIATE_SHIFT, inj.inject_covariate_shift(base_df, num_col, shift_std=3.0).corrupted_df))
         # 9. Label Shift
-        scenarios.append((FaultType.LABEL_SHIFT, self.injector.inject_label_shift(base_df, cat_col).corrupted_df))
+        scenarios.append((FaultType.LABEL_SHIFT, inj.inject_label_shift(base_df, cat_col).corrupted_df))
         # 10. Correlated Feature Breakage
-        scenarios.append((FaultType.CORRELATED_FEATURE_BREAKAGE, self.injector.inject_correlated_feature_breakage(base_df, col_a, col_b).corrupted_df))
+        scenarios.append((FaultType.CORRELATED_FEATURE_BREAKAGE, inj.inject_correlated_feature_breakage(base_df, col_a, col_b).corrupted_df))
 
         return scenarios
 
@@ -153,6 +158,27 @@ class BenchmarkRunner:
             far = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
             avg_latency = float(d_group["latency_ms"].mean())
 
+            # Compute standard deviations across seeds
+            seed_f1s = []
+            seed_precs = []
+            seed_recs = []
+            for _, seed_group in d_group.groupby("run_seed"):
+                s_fault = seed_group[seed_group["is_fault"]]
+                s_clean = seed_group[~seed_group["is_fault"]]
+                s_tp = int(s_fault["detected"].sum())
+                s_fn = int((~s_fault["detected"]).sum())
+                s_fp = int(s_clean["detected"].sum())
+                s_prec = s_tp / (s_tp + s_fp) if (s_tp + s_fp) > 0 else 0.0
+                s_rec = s_tp / (s_tp + s_fn) if (s_tp + s_fn) > 0 else 0.0
+                s_f1 = (2 * s_prec * s_rec / (s_prec + s_rec)) if (s_prec + s_rec) > 0 else 0.0
+                seed_f1s.append(s_f1)
+                seed_precs.append(s_prec)
+                seed_recs.append(s_rec)
+
+            std_f1 = float(pd.Series(seed_f1s).std()) if len(seed_f1s) > 1 else 0.0
+            std_prec = float(pd.Series(seed_precs).std()) if len(seed_precs) > 1 else 0.0
+            std_rec = float(pd.Series(seed_recs).std()) if len(seed_recs) > 1 else 0.0
+
             results.append({
                 "detector": detector,
                 "trials": len(d_group),
@@ -163,6 +189,9 @@ class BenchmarkRunner:
                 "precision": round(precision, 4),
                 "recall": round(recall, 4),
                 "f1_score": round(f1, 4),
+                "f1_std": round(std_f1, 4),
+                "precision_std": round(std_prec, 4),
+                "recall_std": round(std_rec, 4),
                 "false_alarm_rate": round(far, 4),
                 "avg_latency_ms": round(avg_latency, 2),
             })
