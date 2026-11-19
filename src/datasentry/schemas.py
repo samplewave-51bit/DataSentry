@@ -100,6 +100,48 @@ class DriftReport(BaseModel):
     findings: List[Finding] = Field(default_factory=list)
 
 
+class TimeSeriesPoint(BaseModel):
+    timestamp: str
+    actual: float
+    predicted: float
+    lower_bound: float
+    upper_bound: float
+    residual: float
+    is_anomaly: bool
+
+
+class TimeSeriesReport(BaseModel):
+    total_points: int
+    anomaly_count: int
+    anomaly_percentage: float
+    calibrated_coverage: float
+    empirical_coverage: float
+    interval_alpha: float = 0.05
+    mean_absolute_error: float
+    is_drift: bool
+    forecaster_model: str = "seasonal_residual_forecaster"
+    baseline_model: str = "arima_baseline"
+    baseline_coverage: float = 0.0
+    baseline_mae: float = 0.0
+    points: List[TimeSeriesPoint] = Field(default_factory=list)
+    findings: List[Finding] = Field(default_factory=list)
+
+
+class TextDriftReport(BaseModel):
+    total_reference_docs: int
+    total_current_docs: int
+    embedding_model: str
+    mmd_score: float
+    mmd_threshold: float = 0.05
+    domain_classifier_auc: float
+    auc_threshold: float = 0.65
+    centroid_cosine_distance: float
+    cosine_threshold: float = 0.15
+    is_drift: bool
+    top_divergent_terms: List[str] = Field(default_factory=list)
+    findings: List[Finding] = Field(default_factory=list)
+
+
 class DataSentryReport(BaseModel):
     """Consolidated DataSentry Diagnostic Report."""
     report_id: str
@@ -108,6 +150,8 @@ class DataSentryReport(BaseModel):
     quality: QualityReport
     anomaly: AnomalyReport
     drift: Optional[DriftReport] = None
+    timeseries: Optional[TimeSeriesReport] = None
+    text: Optional[TextDriftReport] = None
     all_findings: List[Finding] = Field(default_factory=list)
     overall_status: str = Field(
         default="PASS",

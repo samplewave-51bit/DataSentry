@@ -10,15 +10,19 @@ from datasentry.schemas import (
     Finding,
     QualityReport,
     Severity,
+    TextDriftReport,
+    TimeSeriesReport,
 )
 
 __version__ = "0.1.0"
 __all__ = [
+    "AnomalyReport",
     "AxisType",
     "DataSentryReport",
+    "DriftReport",
     "Finding",
     "QualityReport",
-    "AnomalyReport",
-    "DriftReport",
     "Severity",
+    "TextDriftReport",
+    "TimeSeriesReport",
 ]
