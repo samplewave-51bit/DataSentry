@@ -4,11 +4,11 @@ Ablation study comparing PyTorch Autoencoder against Isolation Forest, Mahalanob
 
 | model                   | mean_f1 | mean_auc | mean_precision | mean_recall | avg_latency_ms | fit_time_ms |
 | ----------------------- | ------- | -------- | -------------- | ----------- | -------------- | ----------- |
-| pytorch_autoencoder     | 0.7278  | 0.9996   | 0.5744         | 1.0         | 10.7775        | 5324.86     |
-| pca_reconstruction      | 0.6572  | 1.0      | 0.4913         | 1.0         | 8.642          | 17.94       |
-| mahalanobis             | 0.6538  | 0.9804   | 0.7839         | 0.57        | 15.9856        | 0.0         |
-| isolation_forest_prefit | 0.5527  | 0.9456   | 0.5064         | 0.63        | 40.6506        | 238.76      |
-| isolation_forest_online | 0.5067  | 0.9673   | 0.76           | 0.38        | 238.2326       | 0.0         |
+| pytorch_autoencoder     | 0.7278  | 0.9996   | 0.5744         | 1.0         | 8.5241         | 4610.12     |
+| pca_reconstruction      | 0.6572  | 1.0      | 0.4913         | 1.0         | 6.728          | 10.08       |
+| mahalanobis             | 0.6538  | 0.9804   | 0.7839         | 0.57        | 10.9272        | 0.0         |
+| isolation_forest_prefit | 0.5527  | 0.9456   | 0.5064         | 0.63        | 39.0259        | 215.7       |
+| isolation_forest_online | 0.5067  | 0.9673   | 0.76           | 0.38        | 216.9364       | 0.0         |
 
 ### Learned Domain Classifier Drift Metrics
 - **Clean Negative Control ROC AUC:** 0.531 (Alert: False)
