@@ -48,6 +48,7 @@ htmlcov/
 
 # Datasets & benchmark outputs (keep scripts, ignore raw caches)
 data/cache/
+logs/
 data/raw/
 *.parquet
 *.log

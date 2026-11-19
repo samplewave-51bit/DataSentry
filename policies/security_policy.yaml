@@ -1,0 +1,62 @@
+# DataSentry Enterprise Agent Security Policy
+version: "1.0"
+
+settings:
+  dry_run_default: true
+  max_execution_steps: 10
+  rate_limit_per_minute: 20
+  budget_cap_usd: 1.00
+  audit_log_path: "logs/audit_log.jsonl"
+
+risk_tiers:
+  low_risk:
+    description: "Read-only or non-destructive diagnostic actions. Auto-execute allowed."
+    require_human_approval: false
+    tools:
+      - pass_batch
+      - request_schema_fix
+      - query_status
+      - log_audit_event
+      - notify_team
+
+  medium_risk:
+    description: "Reversible operational actions affecting a single incoming batch."
+    require_human_approval: false
+    tools:
+      - quarantine_batch
+      - isolate_anomalous_records
+      - send_alert
+
+  high_risk:
+    description: "Destructive, expensive, or pipeline-altering operations. Strict human approval required."
+    require_human_approval: true
+    tools:
+      - trigger_retraining
+      - overwrite_reference
+      - delete_dataset
+      - execute_custom_sql
+      - modify_pipeline_config
+
+roles:
+  remediation_agent:
+    allowed_tools:
+      - pass_batch
+      - quarantine_batch
+      - request_schema_fix
+      - isolate_anomalous_records
+      - trigger_retraining
+      - log_audit_event
+      - notify_team
+      - send_alert
+
+  auditor:
+    allowed_tools:
+      - query_status
+      - log_audit_event
+
+forbidden_tools:
+  - delete_dataset
+  - drop_database
+  - execute_custom_sql
+  - modify_iam_policy
+  - export_unencrypted_keys
