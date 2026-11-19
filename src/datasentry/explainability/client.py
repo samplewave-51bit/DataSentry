@@ -108,10 +108,14 @@ class WatsonxClient(LLMClient):
             )
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        # Check if official SDK is installed
+        # Check if official SDK is installed (dynamically imported to avoid static analyzer errors when optional)
         try:
-            from ibm_watsonx_ai.foundation_models import Model
-            from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
+            import importlib
+
+            ibm_models = importlib.import_module("ibm_watsonx_ai.foundation_models")
+            ibm_metanames = importlib.import_module("ibm_watsonx_ai.metanames")
+            Model = getattr(ibm_models, "Model")
+            GenParams = getattr(ibm_metanames, "GenTextParamsMetaNames")
 
             parameters = {
                 GenParams.DECODING_METHOD: "greedy",
